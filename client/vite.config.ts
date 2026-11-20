@@ -9,6 +9,8 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    // Allow public demo links through a Cloudflare quick tunnel (see README).
+    allowedHosts: ['.trycloudflare.com'],
     proxy: { '/api': { target: 'http://localhost:4000', changeOrigin: false } },
   },
   build: {
