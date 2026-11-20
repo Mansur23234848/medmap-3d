@@ -1,0 +1,6 @@
+human.glb — "Human base mesh with editable 53-bone rig"
+Author: Innerscene Corp (https://www.innerscene.com), built from MakeHuman/MPFB CC0 assets.
+Source: https://www.innerscene.com/tools/library/3d-parts/human-base-mesh-with-editable-53-bone-rig-8e7c8ab1
+License: CC0 1.0 Universal (public domain) — https://creativecommons.org/publicdomain/zero/1.0/
+(The license statement is also embedded in the GLB asset.copyright field.)
+Downloaded: 2026-11-20. Attribution is not required; it is given here as good practice.
