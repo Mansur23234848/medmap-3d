@@ -5,7 +5,7 @@ services:
     runtime: node
     plan: free
     region: frankfurt
-    buildCommand: npm --prefix client ci --include=dev && npm --prefix client run build && npm --prefix server ci --include=dev && npm --prefix server exec prisma generate
+    buildCommand: npm --prefix client ci --include=dev && npm --prefix client run build && cd server && npm ci --include=dev && npx prisma generate
     startCommand: cd server && node scripts/cloud-start.mjs
     healthCheckPath: /api/health
     envVars:
