@@ -11,12 +11,14 @@ if (!url) {
   console.error('DATABASE_URL is not set');
   process.exit(1);
 }
-if (!/^mysql:\/\//i.test(url)) {
-  // Diagnostics without leaking the secret: only the scheme part and the length.
-  const scheme = url.includes('://') ? url.slice(0, url.indexOf('://')) : '(no "://" found)';
-  console.error(`DATABASE_URL must start with mysql:// — got scheme "${scheme.slice(0, 20)}", length ${url.length}. Paste the "Service URI" from Aiven (copy icon).`);
+// If extra text was pasted around the URI, keep just the mysql://… part.
+const found = url.match(/mysql:\/\/[^\s'"]+/i);
+if (!found) {
+  // Never print any part of the value: it may contain secrets.
+  console.error(`DATABASE_URL does not contain a mysql:// URI (length ${url.length}). Paste the "Service URI" from Aiven (copy icon).`);
   process.exit(1);
 }
+url = found[0];
 if (/CLICK_TO|REVEAL_PASSWORD/i.test(url)) {
   console.error('DATABASE_URL contains the Aiven placeholder instead of the real password. Use the copy icon next to "Service URI" in Aiven.');
   process.exit(1);
