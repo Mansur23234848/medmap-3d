@@ -1,5 +1,7 @@
 # MEDMAP 3D — Premium Digital Health Platform
 
+> 🌐 **Интернеттегі нұсқа:** https://medmap-3d.onrender.com/medmap3d/ (тегін сервер: 15 минут кірмесе «ұйықтайды», алғаш ашқанда ~50 секунд жүктеледі)
+
 Адамның денсаулығы туралы ақпаратты **интерактивті 3D дене** арқылы жинап, жеке медициналық картада сақтайтын демонстрациялық веб-платформа.
 
 > 📘 **Қазақша толық іске қосу нұсқаулығы: [README_KZ.md](README_KZ.md)** · Демо аккаунттар: [DEMO_ACCOUNTS.md](DEMO_ACCOUNTS.md) · Сайт: **http://localhost/medmap3d/** (`START_MEDMAP.bat`)
