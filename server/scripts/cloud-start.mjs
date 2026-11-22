@@ -6,7 +6,7 @@
 import { spawnSync } from 'node:child_process';
 
 // Pasted values often carry spaces, line breaks or quotes — strip them.
-let url = (process.env.DATABASE_URL ?? '').trim().replace(/^['"]+|['"]+$/g, '').trim();
+let url = (process.env.DATABASE_URL ?? '').replace(/\s+/g, '').replace(/^['"]+|['"]+$/g, '');
 if (!url) {
   console.error('DATABASE_URL is not set');
   process.exit(1);
@@ -19,9 +19,16 @@ if (!found) {
   process.exit(1);
 }
 url = found[0];
-if (/CLICK_TO|REVEAL_PASSWORD/i.test(url)) {
-  console.error('DATABASE_URL contains the Aiven placeholder instead of the real password. Use the copy icon next to "Service URI" in Aiven.');
-  process.exit(1);
+if (/CLICK_TO:?REVEAL_PASSWORD/i.test(url)) {
+  // Aiven shows/copies a placeholder until the password is revealed: accept the password separately.
+  const pw = (process.env.DB_PASSWORD ?? '').trim();
+  if (!pw) {
+    console.error('DATABASE_URL contains the Aiven placeholder instead of the real password. Either reveal the password in Aiven before copying, or add DB_PASSWORD with the password.');
+    process.exit(1);
+  }
+  // Aiven's placeholder stands for "user:password" (user is avnadmin unless DB_USER says otherwise).
+  const user = (process.env.DB_USER ?? 'avnadmin').trim();
+  url = url.replace(/CLICK_TO:?REVEAL_PASSWORD/i, `${encodeURIComponent(user)}:${encodeURIComponent(pw)}`);
 }
 url = url.replace(/([?&])ssl-mode=[^&]*/i, '$1sslaccept=accept_invalid_certs').replace(/\?&/, '?');
 if (!/sslaccept=/.test(url) && process.env.DB_SSL !== 'false') url += (url.includes('?') ? '&' : '?') + 'sslaccept=accept_invalid_certs';
