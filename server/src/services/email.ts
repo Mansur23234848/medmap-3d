@@ -11,9 +11,9 @@ function getTransporter() {
     secure: env.smtp.port === 465,
     requireTLS: env.smtp.port === 587,
     auth: { user: env.smtp.user, pass: env.smtp.pass },
-    connectionTimeout: 15000,
-    greetingTimeout: 15000,
-    socketTimeout: 20000,
+    connectionTimeout: 8000,
+    greetingTimeout: 8000,
+    socketTimeout: 15000,
   });
   return transporter;
 }

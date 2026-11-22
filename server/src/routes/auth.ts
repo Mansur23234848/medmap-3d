@@ -49,7 +49,8 @@ async function issueVerificationCode(user: { id: number; email: string; fullName
   await prisma.emailVerification.create({ data: { userId: user.id, codeHash: digest(`${user.id}:${code}`), expiresAt: new Date(Date.now() + CODE_TTL_MS) } });
   const t = templates.verifyCode(user.fullName, code);
   const sent = await sendEmail({ to: user.email, template: 'verify_code', userId: user.id, ...t });
-  return { sent, devCode: devMode() ? code : undefined };
+  // If the mail could not be delivered (e.g. the host blocks SMTP), show the code on screen so sign-up still works.
+  return { sent, devCode: devMode() || (sent.status === 'FAILED' && env.emailDevFallback) ? code : undefined };
 }
 
 // ---------- Registration with e-mail verification ----------
@@ -178,7 +179,7 @@ authRouter.post('/forgot-password', codeLimiter, ah(async (req, res) => {
   const t = templates.resetPassword(user.fullName, url);
   const sent = await sendEmail({ to: user.email, template: 'reset_password', userId: user.id, ...t });
   await audit(req, 'auth.reset_requested', 'user', user.id, undefined, user.id);
-  res.json({ ...generic, emailStatus: sent.status, devResetPath: devMode() ? `/reset-password?token=${token}` : undefined });
+  res.json({ ...generic, emailStatus: sent.status, devResetPath: devMode() || (sent.status === 'FAILED' && env.emailDevFallback) ? `/reset-password?token=${token}` : undefined });
 }));
 
 authRouter.post('/reset-password', codeLimiter, ah(async (req, res) => {

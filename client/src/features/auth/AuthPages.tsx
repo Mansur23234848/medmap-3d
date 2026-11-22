@@ -252,7 +252,7 @@ function VerifyEmailForm({ email, devCode, onBack }: { email: string; devCode?: 
       </div>
       {hint && (
         <p className="rounded-xl bg-warning-soft px-3 py-2.5 text-[13px] text-ink-2">
-          Демо режим (SMTP бапталмаған): растау коды — <b className="font-mono tracking-widest">{hint}</b>
+          Хат жіберілмеді (демо режим): растау коды — <b className="font-mono tracking-widest">{hint}</b>
         </p>
       )}
       <Field label="Растау коды">
@@ -307,7 +307,7 @@ export function ForgotPasswordPage() {
           </div>
           {sent.devResetPath && (
             <p className="rounded-xl bg-warning-soft px-3 py-2.5 text-[13px] text-ink-2">
-              Демо режим (SMTP бапталмаған): <Link to={sent.devResetPath} className="font-medium text-primary underline">қалпына келтіру сілтемесін ашу</Link>
+              Хат жіберілмеді (демо режим): <Link to={sent.devResetPath} className="font-medium text-primary underline">қалпына келтіру сілтемесін ашу</Link>
             </p>
           )}
           <Link to="/login"><Button variant="outline" size="lg" className="w-full">Кіру бетіне оралу</Button></Link>
