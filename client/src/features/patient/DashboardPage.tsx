@@ -55,7 +55,7 @@ export default function DashboardPage() {
   }
 
   const p = data.profile;
-  const open = data.reports.filter((r) => r.status === 'OPEN' || r.status === 'UNDER_REVIEW').length;
+  const open = data.reports.filter((r) => r.status === 'NEW' || r.status === 'UNDER_REVIEW' || r.status === 'ACCEPTED').length;
   const activeRx = data.prescriptions.filter((r) => r.status === 'ACTIVE');
   const firstName = user?.fullName.split(' ')[0];
 

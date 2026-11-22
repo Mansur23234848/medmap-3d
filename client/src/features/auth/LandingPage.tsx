@@ -33,7 +33,7 @@ export default function LandingPage() {
       <section className="mx-auto grid max-w-7xl items-center gap-8 px-4 pt-4 pb-16 sm:px-6 lg:grid-cols-[1.05fr_1fr] lg:gap-4 lg:pt-10">
         <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }} className="order-2 lg:order-1">
           <span className="inline-flex items-center gap-2 rounded-full border border-line bg-surface/70 px-3 py-1.5 text-[12px] font-medium text-ink-2 backdrop-blur">
-            <span className="h-1.5 w-1.5 rounded-full bg-accent" /> Digital Health Platform
+            <span className="h-1.5 w-1.5 rounded-full bg-accent" /> Цифрлық денсаулық платформасы
           </span>
           <h1 className="mt-6 text-[40px] leading-[1.05] font-semibold tracking-[-0.035em] sm:text-[56px]">
             Денсаулығыңыздың
@@ -73,7 +73,7 @@ export default function LandingPage() {
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="absolute top-4 right-4 rounded-2xl border border-line bg-surface/85 px-4 py-3 shadow-pop backdrop-blur-xl">
               <p className="eyebrow">Таңдалған аймақ</p>
               <p className="mt-1 text-[15px] font-semibold">{AREA_NAMES[sel].kk}</p>
-              <p className="text-[12px] text-muted">{AREA_NAMES[sel].en} · шағым қосу үшін кіріңіз</p>
+              <p className="text-[12px] text-muted">Өтінім жіберу үшін жүйеге кіріңіз</p>
             </motion.div>
           )}
         </div>

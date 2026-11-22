@@ -9,6 +9,8 @@ import { requireAuth, requireRole } from '../middleware/auth.js';
 import { patientProfileOf } from '../services/access.js';
 import { loadPatientRecord } from '../services/records.js';
 import { renderPatientPdf } from '../services/pdf.js';
+import { announceNewApplication, applicationNo } from '../services/applications.js';
+import crypto from 'node:crypto';
 
 export const patientRouter = Router();
 patientRouter.use(requireAuth, requireRole('PATIENT'));
@@ -59,6 +61,10 @@ const reportSchema = z.object({
   additionalSymptoms: optText(1500),
   visitedDoctor: z.union([z.boolean(), z.enum(['true', 'false'])]).transform((v) => v === true || v === 'true'),
   visitDetails: optText(1500),
+  contactName: z.string().trim().min(3, 'Аты-жөніңізді енгізіңіз').max(120),
+  contactEmail: z.string().trim().toLowerCase().email('Email мекенжайы дұрыс емес').max(191),
+  contactPhone: z.string().trim().max(30).regex(/^[+\d\s()-]*$/, 'Телефон нөмірі дұрыс емес').optional().transform((v) => v || null),
+  submissionKey: z.string().trim().regex(/^[A-Za-z0-9-]{8,64}$/).optional(),
 });
 
 async function ownReport(userId: number, id: number) {
@@ -88,21 +94,37 @@ patientRouter.post('/reports', upload.array('files', 3), ah(async (req, res) => 
     const profile = await patientProfileOf(req.user!.id);
     const area = await prisma.bodyArea.findUnique({ where: { slug: data.bodyAreaSlug } });
     if (!area) throw new HttpError(400, 'Дене аймағы табылмады');
-    const { bodyAreaSlug: _, ...rest } = data;
-    const report = await prisma.symptomReport.create({
-      data: {
-        ...rest,
-        visitDetails: rest.visitedDoctor ? rest.visitDetails : null,
-        patientId: profile.id,
-        bodyAreaId: area.id,
-        attachments: { create: files.map((f) => ({ originalName: f.originalname.slice(0, 255), storedName: f.filename, mimeType: f.mimetype, sizeBytes: f.size })) },
-      },
-      include: { bodyArea: true, attachments: true },
+    const { bodyAreaSlug: _, submissionKey, ...rest } = data;
+    // Idempotency: a double click / retry with the same form key returns the already-saved application.
+    if (submissionKey) {
+      const dup = await prisma.symptomReport.findUnique({ where: { submissionKey }, include: { bodyArea: true, attachments: true } });
+      if (dup) {
+        files.forEach((f) => fs.existsSync(f.path) && fs.unlinkSync(f.path));
+        if (dup.patientId !== profile.id) throw forbidden();
+        return res.status(200).json({ report: dup, duplicate: true });
+      }
+    }
+    const report = await prisma.$transaction(async (tx) => {
+      const created = await tx.symptomReport.create({
+        data: {
+          ...rest,
+          applicationNo: `TMP-${crypto.randomUUID().slice(0, 12)}`,
+          submissionKey: submissionKey ?? null,
+          visitDetails: rest.visitedDoctor ? rest.visitDetails : null,
+          patientId: profile.id,
+          bodyAreaId: area.id,
+          attachments: { create: files.map((f) => ({ originalName: f.originalname.slice(0, 255), storedName: f.filename, mimeType: f.mimetype, sizeBytes: f.size })) },
+        },
+      });
+      return tx.symptomReport.update({ where: { id: created.id }, data: { applicationNo: applicationNo(created.id) }, include: { bodyArea: true, attachments: true } });
     });
-    // Notify doctors who currently have access to this patient.
+    // Keep the patient's contact phone on the profile if they did not have one yet.
+    if (rest.contactPhone && !profile.phone) await prisma.patientProfile.update({ where: { id: profile.id }, data: { phone: rest.contactPhone } });
+    // Notify doctors who currently have access to this patient, the admins and the patient.
     const doctors = await prisma.patientConsent.findMany({ where: { patientId: profile.id, status: 'ACTIVE', grantee: { role: 'DOCTOR' } } });
-    await Promise.all(doctors.map((c) => notify(c.granteeUserId, 'Жаңа шағым', `${req.user!.fullName}: ${area.nameKk} аймағы бойынша жаңа жазба`, 'info', `/doctor/patients/${profile.id}`)));
-    await audit(req, 'report.created', 'symptom_report', report.id, { area: area.slug, files: files.length });
+    await Promise.all(doctors.map((c) => notify(c.granteeUserId, 'Жаңа өтінім', `${report.applicationNo} · ${report.contactName}: ${area.nameKk}`, 'info', `/doctor/patients/${profile.id}`)));
+    await announceNewApplication(report, req.user!.id);
+    await audit(req, 'report.created', 'symptom_report', report.id, { applicationNo: report.applicationNo, area: area.slug, files: files.length });
     res.status(201).json({ report });
   } catch (e) {
     files.forEach((f) => fs.existsSync(f.path) && fs.unlinkSync(f.path));
@@ -115,11 +137,11 @@ patientRouter.put('/reports/:id', upload.array('files', 3), ah(async (req, res) 
   try {
     verifyUploadedFiles(files);
     const { r } = await ownReport(req.user!.id, idParam(req));
-    if (r.status !== 'OPEN') throw new HttpError(409, 'Дәрігер қараған шағымды өзгертуге болмайды');
+    if (r.status !== 'NEW') throw new HttpError(409, 'Қаралуға алынған өтінімді өзгертуге болмайды');
     const data = parse(reportSchema, req.body);
     const area = await prisma.bodyArea.findUnique({ where: { slug: data.bodyAreaSlug } });
     if (!area) throw new HttpError(400, 'Дене аймағы табылмады');
-    const { bodyAreaSlug: _, ...rest } = data;
+    const { bodyAreaSlug: _, submissionKey: _k, ...rest } = data;
     const report = await prisma.symptomReport.update({
       where: { id: r.id },
       data: {
@@ -140,7 +162,7 @@ patientRouter.put('/reports/:id', upload.array('files', 3), ah(async (req, res) 
 
 patientRouter.delete('/reports/:id', ah(async (req, res) => {
   const { r } = await ownReport(req.user!.id, idParam(req));
-  if (r.status !== 'OPEN' || r._count.medicalRecords > 0) throw new HttpError(409, 'Дәрігер қорытындысы бар шағымды өшіруге болмайды');
+  if (r.status !== 'NEW' || r._count.medicalRecords > 0) throw new HttpError(409, 'Қаралуға алынған немесе дәрігер жауабы бар өтінімді өшіруге болмайды');
   const atts = await prisma.reportAttachment.findMany({ where: { symptomReportId: r.id } });
   await prisma.symptomReport.delete({ where: { id: r.id } });
   atts.forEach((a) => {
@@ -153,7 +175,7 @@ patientRouter.delete('/reports/:id', ah(async (req, res) => {
 
 patientRouter.delete('/reports/:id/attachments/:attId', ah(async (req, res) => {
   const { r } = await ownReport(req.user!.id, idParam(req));
-  if (r.status !== 'OPEN') throw new HttpError(409, 'Қаралған шағымды өзгертуге болмайды');
+  if (r.status !== 'NEW') throw new HttpError(409, 'Қаралуға алынған өтінімді өзгертуге болмайды');
   const att = await prisma.reportAttachment.findFirst({ where: { id: idParam(req, 'attId'), symptomReportId: r.id } });
   if (!att) throw notFound('Файл');
   await prisma.reportAttachment.delete({ where: { id: att.id } });

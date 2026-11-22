@@ -43,7 +43,7 @@ export default function PharmacyPage() {
 
   return (
     <div className="mx-auto max-w-4xl">
-      <PageHeader eyebrow="Pharmacy · Demo" title="Тағайындауды тексеру" subtitle="Код бойынша тағайындаудың мәртебесі мен жарамдылығын тексеріңіз. Бұл демонстрациялық модуль — дәрі беру функциясы жоқ." />
+      <PageHeader eyebrow="Дәріхана · демо" title="Тағайындауды тексеру" subtitle="Код бойынша тағайындаудың мәртебесі мен жарамдылығын тексеріңіз. Бұл демонстрациялық модуль — дәрі беру функциясы жоқ." />
       <Card className="p-5">
         <form onSubmit={submit} className="flex flex-col gap-3 sm:flex-row">
           <div className="relative flex-1">

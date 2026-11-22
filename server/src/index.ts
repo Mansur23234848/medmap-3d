@@ -3,6 +3,9 @@ import helmet from 'helmet';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
+import path from 'node:path';
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { env } from './config/env.js';
 import { prisma } from './lib/core.js';
 import { errorHandler } from './middleware/common.js';
@@ -15,8 +18,26 @@ import { bodyAreasRouter, medicationsRouter, notificationsRouter, filesRouter, p
 const app = express();
 app.set('trust proxy', 'loopback');
 app.disable('x-powered-by');
-app.use(helmet({ crossOriginResourcePolicy: { policy: 'same-site' } }));
-app.use(cors({ origin: env.clientOrigin, credentials: true }));
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'same-site' },
+    // The built SPA (served below) needs inline styles from Framer Motion, blob: for PDFs and WebGL workers.
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'wasm-unsafe-eval'"], // three.js meshopt decoder is WebAssembly
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", 'data:', 'blob:'],
+        connectSrc: ["'self'", 'blob:', 'data:'],
+        fontSrc: ["'self'", 'data:'],
+        workerSrc: ["'self'", 'blob:'],
+        frameSrc: ["'self'", 'blob:'],
+        objectSrc: ["'none'"],
+      },
+    },
+  }),
+);
+app.use(cors({ origin: env.clientOrigins, credentials: true }));
 app.use(express.json({ limit: '200kb' }));
 app.use(cookieParser());
 app.use('/api', rateLimit({ windowMs: 60_000, limit: 600, standardHeaders: true, legacyHeaders: false }));
@@ -45,6 +66,17 @@ app.use('/api/medications', medicationsRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/files', filesRouter);
 app.use('/api', (_req, res) => res.status(404).json({ error: 'API маршруты табылмады' }));
+
+// Built web app (client/dist) at /medmap3d/ — the same files XAMPP Apache serves at http://localhost/medmap3d/.
+const dist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../client/dist');
+if (fs.existsSync(path.join(dist, 'index.html'))) {
+  app.use('/medmap3d', express.static(dist, { index: false, maxAge: '1h' }));
+  app.get(/^\/medmap3d(\/.*)?$/, (_req, res) => res.sendFile(path.join(dist, 'index.html')));
+  app.get('/', (_req, res) => res.redirect('/medmap3d/'));
+}
 app.use(errorHandler);
 
-app.listen(env.port, () => console.log(`MEDMAP 3D API → http://localhost:${env.port}`));
+app.listen(env.port, () => {
+  console.log(`MEDMAP 3D API → http://localhost:${env.port}/api  ·  web → http://localhost:${env.port}/medmap3d/`);
+  console.log(`E-mail: ${env.smtp.configured ? `SMTP ${env.smtp.host}:${env.smtp.port}` : 'SMTP бапталмаған (демо режим)'}`);
+});

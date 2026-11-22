@@ -378,7 +378,7 @@ export default function BodyScene({ selected = null, onSelect, marked, interacti
           {hovered && (
             <>
               <p className="text-[13px] font-semibold">{AREA_NAMES[hovered].kk}</p>
-              <p className="text-[11px] text-muted">{AREA_NAMES[hovered].en}</p>
+              <p className="text-[11px] text-muted">Таңдау үшін басыңыз</p>
             </>
           )}
         </motion.div>

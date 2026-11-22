@@ -1,8 +1,8 @@
-import { useState, type FormEvent, type ReactNode } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
-import { Eye, EyeOff, Pill, Shield, Stethoscope, User } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, KeyRound, MailCheck, Pill, Shield, Stethoscope, User } from 'lucide-react';
 import { Logo } from '@/components/ui/Logo';
 import { Button } from '@/components/ui/Button';
 import { Field } from '@/components/ui/primitives';
@@ -69,6 +69,7 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [verifyFor, setVerifyFor] = useState<{ email: string; devCode?: string } | null>(null);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -79,17 +80,32 @@ export function LoginPage() {
       toast.success(`Қош келдіңіз, ${me.fullName.split(' ')[0]}!`);
       nav(ROLE_HOME[me.role], { replace: true });
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Кіру мүмкін болмады');
+      if (err instanceof ApiError && err.details?.code === 'EMAIL_NOT_VERIFIED') {
+        // Send a fresh code right away and switch to the verification step.
+        const r = await api.post<{ devCode?: string }>('/auth/resend-code', { email }).catch(() => ({} as { devCode?: string }));
+        setVerifyFor({ email: String(err.details.email ?? email), devCode: r.devCode });
+      } else setError(err instanceof ApiError ? err.message : 'Кіру мүмкін болмады');
     } finally {
       setLoading(false);
     }
   };
 
+  if (verifyFor) {
+    return (
+      <AuthLayout title="Email-ді растаңыз" subtitle={`${verifyFor.email} мекенжайына 6 таңбалы код жіберілді.`}>
+        <VerifyEmailForm email={verifyFor.email} devCode={verifyFor.devCode} onBack={() => setVerifyFor(null)} />
+      </AuthLayout>
+    );
+  }
+
   return (
     <AuthLayout title="Жүйеге кіру" subtitle="Аккаунтыңызға кіріп, медициналық картаңызды ашыңыз.">
       <form onSubmit={submit} className="space-y-4">
-        <Field label="Email"><input className="field" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required /></Field>
-        <Field label="Құпиясөз"><PasswordInput value={password} onChange={setPassword} autoComplete="current-password" /></Field>
+        <Field label="Email (Gmail)"><input className="field" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required placeholder="example@gmail.com" /></Field>
+        <div>
+          <Field label="Құпиясөз"><PasswordInput value={password} onChange={setPassword} autoComplete="current-password" /></Field>
+          <div className="mt-2 text-right"><Link to="/forgot-password" className="text-[13px] font-medium text-primary hover:underline">Құпиясөзді ұмыттыңыз ба?</Link></div>
+        </div>
         {error && <p className="rounded-xl bg-danger-soft px-3 py-2.5 text-[13px] text-danger">{error}</p>}
         <Button type="submit" size="lg" className="w-full" loading={loading}>Кіру</Button>
       </form>
@@ -125,6 +141,7 @@ export function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [agree, setAgree] = useState(false);
+  const [verifyFor, setVerifyFor] = useState<{ email: string; devCode?: string } | null>(null);
   const set = (k: keyof typeof f) => (v: string) => setF((s) => ({ ...s, [k]: v }));
 
   const submit = async (e: FormEvent) => {
@@ -133,10 +150,10 @@ export function RegisterPage() {
     setLoading(true);
     setError('');
     try {
-      await api.post('/auth/register', { ...f, dateOfBirth: f.dateOfBirth || undefined, gender: f.gender || undefined });
-      await refresh();
-      toast.success('Аккаунт жасалды');
-      nav('/app/body-map', { replace: true });
+      const r = await api.post<{ email: string; devCode?: string; emailStatus: string }>('/auth/register', { ...f, dateOfBirth: f.dateOfBirth || undefined, gender: f.gender || undefined });
+      if (r.emailStatus === 'FAILED') toast.error('Хат жіберу кезінде қате шықты. «Кодты қайта жіберу» батырмасын басыңыз.');
+      else toast.success('Растау коды поштаңызға жіберілді');
+      setVerifyFor({ email: r.email, devCode: r.devCode });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Тіркелу мүмкін болмады');
     } finally {
@@ -144,11 +161,21 @@ export function RegisterPage() {
     }
   };
 
+  void refresh;
+  void nav;
+  if (verifyFor) {
+    return (
+      <AuthLayout title="Email-ді растаңыз" subtitle={`${verifyFor.email} мекенжайына 6 таңбалы код жіберілді. Код 10 минут жарамды.`}>
+        <VerifyEmailForm email={verifyFor.email} devCode={verifyFor.devCode} onBack={() => setVerifyFor(null)} />
+      </AuthLayout>
+    );
+  }
+
   return (
-    <AuthLayout title="Тіркелу" subtitle="Пациент ретінде жеке медициналық картаңызды жасаңыз.">
+    <AuthLayout title="Тіркелу" subtitle="Gmail поштаңыз арқылы пациент ретінде жеке медициналық картаңызды жасаңыз.">
       <form onSubmit={submit} className="space-y-4">
         <Field label="Аты-жөні"><input className="field" value={f.fullName} onChange={(e) => set('fullName')(e.target.value)} autoComplete="name" required minLength={3} /></Field>
-        <Field label="Email"><input className="field" type="email" value={f.email} onChange={(e) => set('email')(e.target.value)} autoComplete="email" required /></Field>
+        <Field label="Email (Gmail)" hint="Осы мекенжайға растау коды жіберіледі"><input className="field" type="email" value={f.email} onChange={(e) => set('email')(e.target.value)} autoComplete="email" required placeholder="example@gmail.com" /></Field>
         <Field label="Құпиясөз" hint="Кемінде 8 таңба, әріп пен сан"><PasswordInput value={f.password} onChange={set('password')} autoComplete="new-password" /></Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Туған күні"><input className="field" type="date" max={new Date().toISOString().slice(0, 10)} value={f.dateOfBirth} onChange={(e) => set('dateOfBirth')(e.target.value)} /></Field>
@@ -169,6 +196,172 @@ export function RegisterPage() {
         <Button type="submit" size="lg" className="w-full" loading={loading}>Аккаунт жасау</Button>
       </form>
       <p className="mt-6 text-center text-[14px] text-muted">Аккаунтыңыз бар ма? <Link to="/login" className="font-medium text-primary hover:underline">Кіру</Link></p>
+    </AuthLayout>
+  );
+}
+
+// ======================= E-mail verification step =======================
+function VerifyEmailForm({ email, devCode, onBack }: { email: string; devCode?: string; onBack: () => void }) {
+  const { refresh } = useAuth();
+  const nav = useNavigate();
+  const [code, setCode] = useState('');
+  const [hint, setHint] = useState(devCode);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [wait, setWait] = useState(60);
+
+  useEffect(() => {
+    if (wait <= 0) return;
+    const t = setTimeout(() => setWait((w) => w - 1), 1000);
+    return () => clearTimeout(t);
+  }, [wait]);
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (loading) return;
+    setLoading(true);
+    setError('');
+    try {
+      await api.post('/auth/verify-email', { email, code });
+      const me = await refresh();
+      toast.success('Email расталды. Аккаунт белсендірілді!');
+      nav(me ? ROLE_HOME[me.role] : '/app/body-map', { replace: true });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Растау мүмкін болмады');
+    } finally {
+      setLoading(false);
+    }
+  };
+  const resend = async () => {
+    setError('');
+    try {
+      const r = await api.post<{ devCode?: string }>('/auth/resend-code', { email });
+      setHint(r.devCode);
+      setWait(60);
+      toast.success('Жаңа код жіберілді');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Код жіберілмеді');
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <div className="flex items-center gap-3 rounded-2xl border border-primary/20 bg-primary-soft/50 p-4 text-[13px] text-ink-2">
+        <MailCheck className="h-5 w-5 shrink-0 text-primary" />
+        Поштаңызды (және «Спам» қалтасын) тексеріп, хаттағы кодты енгізіңіз.
+      </div>
+      {hint && (
+        <p className="rounded-xl bg-warning-soft px-3 py-2.5 text-[13px] text-ink-2">
+          Демо режим (SMTP бапталмаған): растау коды — <b className="font-mono tracking-widest">{hint}</b>
+        </p>
+      )}
+      <Field label="Растау коды">
+        <input
+          className="field h-14 text-center font-mono text-[26px] tracking-[0.5em]"
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          maxLength={6}
+          value={code}
+          onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+          autoFocus
+          required
+        />
+      </Field>
+      {error && <p className="rounded-xl bg-danger-soft px-3 py-2.5 text-[13px] text-danger">{error}</p>}
+      <Button type="submit" size="lg" className="w-full" loading={loading} disabled={code.length !== 6}>Растау</Button>
+      <div className="flex items-center justify-between text-[13px]">
+        <button type="button" onClick={onBack} className="flex items-center gap-1 font-medium text-muted hover:text-ink"><ArrowLeft className="h-4 w-4" /> Артқа</button>
+        <button type="button" onClick={resend} disabled={wait > 0} className="font-medium text-primary hover:underline disabled:text-muted disabled:no-underline">
+          {wait > 0 ? `Кодты қайта жіберу (${wait})` : 'Кодты қайта жіберу'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// ======================= Forgot / reset password =======================
+export function ForgotPasswordPage() {
+  const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [sent, setSent] = useState<{ message: string; devResetPath?: string } | null>(null);
+  const [error, setError] = useState('');
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    try {
+      setSent(await api.post<{ message: string; devResetPath?: string }>('/auth/forgot-password', { email }));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Сұраныс жіберілмеді');
+    } finally {
+      setLoading(false);
+    }
+  };
+  return (
+    <AuthLayout title="Құпиясөзді қалпына келтіру" subtitle="Тіркелген Gmail мекенжайыңызды енгізіңіз — қалпына келтіру сілтемесін жібереміз.">
+      {sent ? (
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 rounded-2xl border border-success/25 bg-success-soft p-4 text-[13px] text-ink-2">
+            <MailCheck className="mt-0.5 h-5 w-5 shrink-0 text-success" />
+            <p>{sent.message} Сілтеме 30 минут жарамды және бір рет қолданылады.</p>
+          </div>
+          {sent.devResetPath && (
+            <p className="rounded-xl bg-warning-soft px-3 py-2.5 text-[13px] text-ink-2">
+              Демо режим (SMTP бапталмаған): <Link to={sent.devResetPath} className="font-medium text-primary underline">қалпына келтіру сілтемесін ашу</Link>
+            </p>
+          )}
+          <Link to="/login"><Button variant="outline" size="lg" className="w-full">Кіру бетіне оралу</Button></Link>
+        </div>
+      ) : (
+        <form onSubmit={submit} className="space-y-4">
+          <Field label="Email (Gmail)"><input className="field" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required placeholder="example@gmail.com" /></Field>
+          {error && <p className="rounded-xl bg-danger-soft px-3 py-2.5 text-[13px] text-danger">{error}</p>}
+          <Button type="submit" size="lg" className="w-full" loading={loading}>Сілтеме жіберу</Button>
+          <p className="text-center text-[14px] text-muted"><Link to="/login" className="font-medium text-primary hover:underline">Кіру бетіне оралу</Link></p>
+        </form>
+      )}
+    </AuthLayout>
+  );
+}
+
+export function ResetPasswordPage() {
+  const [params] = useSearchParams();
+  const token = params.get('token') ?? '';
+  const nav = useNavigate();
+  const [pw, setPw] = useState('');
+  const [pw2, setPw2] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (pw !== pw2) return setError('Құпиясөздер сәйкес емес');
+    setLoading(true);
+    setError('');
+    try {
+      await api.post('/auth/reset-password', { token, password: pw });
+      toast.success('Құпиясөз жаңартылды. Жаңа құпиясөзбен кіріңіз.');
+      nav('/login', { replace: true });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Құпиясөз жаңартылмады');
+    } finally {
+      setLoading(false);
+    }
+  };
+  return (
+    <AuthLayout title="Жаңа құпиясөз" subtitle="Кемінде 8 таңба: әріп пен сан болуы керек.">
+      {!/^[a-f0-9]{64}$/.test(token) ? (
+        <div className="space-y-4">
+          <p className="rounded-xl bg-danger-soft px-3 py-2.5 text-[13px] text-danger">Сілтеме жарамсыз немесе толық емес.</p>
+          <Link to="/forgot-password"><Button variant="outline" size="lg" className="w-full">Жаңа сілтеме сұрау</Button></Link>
+        </div>
+      ) : (
+        <form onSubmit={submit} className="space-y-4">
+          <Field label="Жаңа құпиясөз"><PasswordInput value={pw} onChange={setPw} autoComplete="new-password" /></Field>
+          <Field label="Құпиясөзді қайталаңыз"><PasswordInput value={pw2} onChange={setPw2} autoComplete="new-password" /></Field>
+          {error && <p className="rounded-xl bg-danger-soft px-3 py-2.5 text-[13px] text-danger">{error}</p>}
+          <Button type="submit" size="lg" className="w-full" loading={loading} icon={<KeyRound className="h-4 w-4" />}>Құпиясөзді сақтау</Button>
+        </form>
+      )}
     </AuthLayout>
   );
 }

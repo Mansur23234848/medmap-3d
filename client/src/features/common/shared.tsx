@@ -3,7 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { CalendarDays, Clock3, Paperclip, Pencil, Stethoscope, Trash2, Upload, X, FileText, Image as ImageIcon } from 'lucide-react';
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError, fileUrl } from '@/lib/api';
+import { useAuth } from '@/hooks/useAuth';
 import type { BodyArea, MedicalRecord, PatientRecord, SymptomReport } from '@/lib/types';
 import { cn, fileSize, fmtDate, intensityTone, RECORD_TYPE, REPORT_STATUS, toInputDate } from '@/lib/utils';
 import { Badge, Field } from '@/components/ui/primitives';
@@ -43,7 +44,7 @@ export function AttachmentList({ items, onRemove }: { items: SymptomReport['atta
       {items.map((a) => (
         <span key={a.id} className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-line bg-surface-2 py-1 pr-1 pl-2 text-[12px]">
           {a.mimeType.startsWith('image/') ? <ImageIcon className="h-3.5 w-3.5 text-muted" /> : <FileText className="h-3.5 w-3.5 text-muted" />}
-          <a href={`/api/files/${a.id}`} target="_blank" rel="noreferrer" className="max-w-[180px] truncate font-medium hover:text-primary">{a.originalName}</a>
+          <a href={fileUrl(a.id)} target="_blank" rel="noreferrer" className="max-w-[180px] truncate font-medium hover:text-primary">{a.originalName}</a>
           <span className="text-muted">{fileSize(a.sizeBytes)}</span>
           {onRemove && (
             <button onClick={() => onRemove(a.id)} className="grid h-5 w-5 place-items-center rounded text-muted hover:text-danger" aria-label="Файлды өшіру"><X className="h-3 w-3" /></button>
@@ -63,7 +64,7 @@ export function ReportCard({ report, records = [], onEdit, onDelete, actions, co
   compact?: boolean;
 }) {
   const st = REPORT_STATUS[report.status];
-  const editable = report.status === 'OPEN';
+  const editable = report.status === 'NEW';
   return (
     <motion.div layout initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border border-line bg-surface p-4 transition hover:border-line-strong">
       <div className="flex items-start justify-between gap-3">
@@ -72,7 +73,7 @@ export function ReportCard({ report, records = [], onEdit, onDelete, actions, co
             <span className="text-[14px] font-semibold">{report.bodyArea.nameKk}</span>
             <Badge tone={st.tone} dot>{st.label}</Badge>
           </div>
-          <p className="mt-0.5 text-[12px] text-muted">{fmtDate(report.createdAt, true)}</p>
+          <p className="mt-0.5 text-[12px] text-muted"><span className="font-mono font-medium text-ink-2">{report.applicationNo}</span> · {fmtDate(report.createdAt, true)}</p>
         </div>
         {(onEdit || onDelete) && editable && (
           <div className="flex shrink-0 gap-1">
@@ -120,8 +121,14 @@ const DURATIONS = ['Бүгін басталды', '1–3 күн', '4–7 күн'
 
 export function SymptomFormModal({ open, onClose, areaSlug, report }: { open: boolean; onClose: () => void; areaSlug: string | null; report?: SymptomReport | null }) {
   const qc = useQueryClient();
+  const { user } = useAuth();
   const { data: areas } = useBodyAreas();
+  // One idempotency key per opened form: double clicks / retries cannot create duplicate applications.
+  const [submissionKey, setSubmissionKey] = useState('');
   const blank = useMemo(() => ({
+    contactName: user?.fullName ?? '',
+    contactEmail: user?.email ?? '',
+    contactPhone: user?.patientProfile?.phone ?? '',
     bodyAreaSlug: areaSlug ?? '',
     description: '',
     startedAt: toInputDate(new Date()),
@@ -130,7 +137,7 @@ export function SymptomFormModal({ open, onClose, areaSlug, report }: { open: bo
     additionalSymptoms: '',
     visitedDoctor: false,
     visitDetails: '',
-  }), [areaSlug]);
+  }), [areaSlug, user]);
   const [f, setF] = useState(blank);
   const [files, setFiles] = useState<File[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -139,7 +146,11 @@ export function SymptomFormModal({ open, onClose, areaSlug, report }: { open: bo
     if (!open) return;
     setErrors({});
     setFiles([]);
+    setSubmissionKey(crypto.randomUUID());
     setF(report ? {
+      contactName: report.contactName,
+      contactEmail: report.contactEmail,
+      contactPhone: report.contactPhone ?? '',
       bodyAreaSlug: report.bodyArea.slug,
       description: report.description,
       startedAt: toInputDate(report.startedAt),
@@ -163,12 +174,15 @@ export function SymptomFormModal({ open, onClose, areaSlug, report }: { open: bo
     mutationFn: () => {
       const fd = new FormData();
       Object.entries(f).forEach(([k, v]) => fd.append(k, String(v)));
+      if (!report) fd.append('submissionKey', submissionKey);
       files.forEach((x) => fd.append('files', x));
-      return report ? api.put(`/patient/reports/${report.id}`, fd) : api.post('/patient/reports', fd);
+      return report ? api.put<{ report: SymptomReport }>(`/patient/reports/${report.id}`, fd) : api.post<{ report: SymptomReport }>('/patient/reports', fd);
     },
-    onSuccess: () => {
+    onSuccess: (r) => {
       qc.invalidateQueries({ queryKey: ['patient'] });
-      toast.success(report ? 'Жазба жаңартылды' : 'Шағым медициналық картаңызға сақталды');
+      qc.invalidateQueries({ queryKey: ['notifications'] });
+      if (report) toast.success('Өтінім жаңартылды');
+      else toast.success(`Өтінім сәтті жіберілді · ${r.report.applicationNo}`, { description: 'Мәртебесін «Өтінімдерім» бөлімінен бақылай аласыз. Растау хаты поштаңызға жіберілді.' });
       onClose();
     },
     onError: (e) => {
@@ -179,7 +193,11 @@ export function SymptomFormModal({ open, onClose, areaSlug, report }: { open: bo
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
+    if (save.isPending) return;
     const er: Record<string, string> = {};
+    if (f.contactName.trim().length < 3) er.contactName = 'Аты-жөніңізді енгізіңіз';
+    if (!/^\S+@\S+\.\S+$/.test(f.contactEmail.trim())) er.contactEmail = 'Email мекенжайы дұрыс емес';
+    if (f.contactPhone && !/^[+\d\s()-]{6,30}$/.test(f.contactPhone)) er.contactPhone = 'Телефон нөмірі дұрыс емес';
     if (!f.bodyAreaSlug) er.bodyAreaSlug = 'Аймақты таңдаңыз';
     if (f.description.trim().length < 5) er.description = 'Кемінде 5 таңба';
     if (!f.duration.trim()) er.duration = 'Ұзақтығын көрсетіңіз';
@@ -213,29 +231,38 @@ export function SymptomFormModal({ open, onClose, areaSlug, report }: { open: bo
       open={open}
       onClose={onClose}
       size="lg"
-      title={report ? 'Жазбаны өзгерту' : 'Жаңа шағым'}
+      title={report ? `Өтінімді өзгерту · ${report.applicationNo}` : 'Жаңа өтінім'}
       subtitle="Бұл ақпарат диагноз емес — дәрігерге жағдайыңызды түсінуге көмектеседі."
       footer={
         <>
           <Button variant="outline" onClick={onClose}>Бас тарту</Button>
-          <Button onClick={submit} loading={save.isPending}>{report ? 'Сақтау' : 'Картаға сақтау'}</Button>
+          <Button onClick={submit} loading={save.isPending} disabled={save.isPending}>{report ? 'Сақтау' : 'Өтінімді жіберу'}</Button>
         </>
       }
     >
       <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
-        <Field label="Дене аймағы" error={errors.bodyAreaSlug}>
+        <Field label="Пациенттің аты-жөні *" error={errors.contactName}>
+          <input className="field" value={f.contactName} maxLength={120} onChange={(e) => set('contactName', e.target.value)} autoComplete="name" />
+        </Field>
+        <Field label="Электрондық пошта *" error={errors.contactEmail}>
+          <input className="field" type="email" value={f.contactEmail} maxLength={191} onChange={(e) => set('contactEmail', e.target.value)} autoComplete="email" />
+        </Field>
+        <Field label="Байланыс телефоны" error={errors.contactPhone} className="sm:col-span-2">
+          <input className="field" type="tel" placeholder="+7 7XX XXX XX XX" value={f.contactPhone} maxLength={30} onChange={(e) => set('contactPhone', e.target.value)} autoComplete="tel" />
+        </Field>
+        <Field label="Дене аймағы *" error={errors.bodyAreaSlug}>
           <select className="field" value={f.bodyAreaSlug} onChange={(e) => set('bodyAreaSlug', e.target.value)}>
             <option value="">Таңдаңыз…</option>
-            {areas?.map((a) => <option key={a.slug} value={a.slug}>{a.nameKk} · {a.nameEn}</option>)}
+            {areas?.map((a) => <option key={a.slug} value={a.slug}>{a.nameKk}</option>)}
           </select>
         </Field>
-        <Field label="Басталған күні" error={errors.startedAt}>
+        <Field label="Белгінің басталған күні *" error={errors.startedAt}>
           <input className="field" type="date" max={toInputDate(new Date())} value={f.startedAt} onChange={(e) => set('startedAt', e.target.value)} />
         </Field>
-        <Field label="Шағымның сипаттамасы" error={errors.description} className="sm:col-span-2">
+        <Field label="Шағымның сипаттамасы *" error={errors.description} className="sm:col-span-2">
           <textarea className="field" rows={4} maxLength={3000} placeholder="Не сезінесіз? Қашан күшейеді немесе басылады?" value={f.description} onChange={(e) => set('description', e.target.value)} />
         </Field>
-        <Field label="Ұзақтығы" error={errors.duration} className="sm:col-span-2">
+        <Field label="Ұзақтығы *" error={errors.duration} className="sm:col-span-2">
           <div className="flex flex-wrap gap-2">
             {DURATIONS.map((d) => (
               <button type="button" key={d} onClick={() => set('duration', d)} className={cn('h-9 rounded-full border px-3.5 text-[13px] font-medium transition', f.duration === d ? 'border-primary bg-primary-soft text-primary' : 'border-line-strong text-ink-2 hover:bg-surface-2')}>{d}</button>
@@ -251,7 +278,7 @@ export function SymptomFormModal({ open, onClose, areaSlug, report }: { open: bo
           <input type="range" min={1} max={10} value={f.intensity} onChange={(e) => set('intensity', Number(e.target.value))} className="w-full accent-[var(--primary)]" />
           <div className="mt-1 flex justify-between text-[11px] text-muted"><span>Жеңіл</span><span>Орташа</span><span>Өте күшті</span></div>
         </div>
-        <Field label="Қосымша белгілер" className="sm:col-span-2">
+        <Field label="Қосымша ақпарат / белгілер" className="sm:col-span-2">
           <textarea className="field min-h-20" rows={2} maxLength={1500} placeholder="Мысалы: ісіну, қызару, ұю сезімі…" value={f.additionalSymptoms} onChange={(e) => set('additionalSymptoms', e.target.value)} />
         </Field>
         <div className="sm:col-span-2">

@@ -28,7 +28,7 @@ export function Logo({ className, compact }: { className?: string; compact?: boo
           <div className="text-[15px] font-bold tracking-tight">
             MEDMAP <span className="text-accent">3D</span>
           </div>
-          <div className="mt-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted">Digital Health</div>
+          <div className="mt-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted">Цифрлық денсаулық</div>
         </div>
       )}
     </div>

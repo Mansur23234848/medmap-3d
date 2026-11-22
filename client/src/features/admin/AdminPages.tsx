@@ -34,7 +34,7 @@ export function AdminOverview() {
 
   return (
     <div>
-      <PageHeader eyebrow="System statistics" title="Жүйе шолуы" subtitle="Барлық көрсеткіштер деректер базасынан нақты уақытта есептеледі" />
+      <PageHeader eyebrow="Жүйе статистикасы" title="Жүйе шолуы" subtitle="Барлық көрсеткіштер деректер базасынан нақты уақытта есептеледі" />
       <motion.div variants={stagger.container} initial="hidden" animate="show" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <motion.div variants={stagger.item}><Stat label="Қолданушылар" value={users} hint={`${data.usersByRole.PATIENT ?? 0} пациент · ${data.usersByRole.DOCTOR ?? 0} дәрігер · ${data.usersByRole.PHARMACIST ?? 0} фармацевт`} icon={<Users className="h-4 w-4" />} /></motion.div>
         <motion.div variants={stagger.item}><Stat label="Шағымдар" value={reports} hint={`${data.medicalRecords} дәрігер қорытындысы`} icon={<ClipboardList className="h-4 w-4" />} tone="warning" /></motion.div>
@@ -119,7 +119,7 @@ export function AdminUsers() {
 
   return (
     <div>
-      <PageHeader eyebrow="Users management" title="Қолданушылар" subtitle="Рөлдерді, профильдерді және аккаунт мәртебесін басқару" actions={<Button icon={<Plus className="h-4 w-4" />} onClick={() => setCreating(true)}>Қолданушы қосу</Button>} />
+      <PageHeader eyebrow="Қолданушыларды басқару" title="Қолданушылар" subtitle="Рөлдерді, профильдерді және аккаунт мәртебесін басқару" actions={<Button icon={<Plus className="h-4 w-4" />} onClick={() => setCreating(true)}>Қолданушы қосу</Button>} />
       <Card>
         <div className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex gap-1 overflow-x-auto rounded-xl bg-surface-2 p-1">
@@ -226,7 +226,7 @@ export function AdminRecords() {
   });
   return (
     <div>
-      <PageHeader eyebrow="Medical records management" title="Медициналық жазбалар" subtitle="Барлық шағымдар мен дәрігер қорытындылары (әкімші көрінісі аудитке жазылады)" />
+      <PageHeader eyebrow="Медициналық жазбаларды басқару" title="Медициналық жазбалар" subtitle="Барлық шағымдар мен дәрігер қорытындылары (әкімші көрінісі аудитке жазылады)" />
       <Card>
         <CardHeader title={`Шағымдар (${data?.reports.length ?? 0})`} icon={<ClipboardList className="h-4 w-4" />} />
         {isLoading && <Skeleton className="m-4 h-40" />}
@@ -277,7 +277,7 @@ export function AdminMedications() {
   });
   return (
     <div>
-      <PageHeader eyebrow="Medication database management" title="Дәрілер базасы" subtitle="Әр жазбаға ресми дереккөз сілтемесі міндетті" actions={<Button icon={<Plus className="h-4 w-4" />} onClick={() => setEditing('new')}>Дәрі қосу</Button>} />
+      <PageHeader eyebrow="Дәрілер базасын басқару" title="Дәрілер базасы" subtitle="Әр жазбаға ресми дереккөз сілтемесі міндетті" actions={<Button icon={<Plus className="h-4 w-4" />} onClick={() => setEditing('new')}>Дәрі қосу</Button>} />
       <Card>
         {isLoading && <Skeleton className="m-4 h-40" />}
         <div className="divide-y divide-line">
@@ -348,7 +348,7 @@ export function AdminLogs() {
   const FILTERS = [['', 'Барлығы'], ['auth', 'Кіру'], ['report', 'Шағымдар'], ['consent', 'Рұқсаттар'], ['prescription', 'Тағайындаулар'], ['pharmacy', 'Дәріхана'], ['admin', 'Әкімші'], ['pdf', 'PDF'], ['doctor', 'Дәрігер']];
   return (
     <div>
-      <PageHeader eyebrow="Audit logs" title="Аудит журналы" subtitle={`Барлығы ${data?.total ?? 0} жазба`} />
+      <PageHeader eyebrow="Әрекеттер журналы" title="Аудит журналы" subtitle={`Барлығы ${data?.total ?? 0} жазба`} />
       <div className="mb-4 flex gap-1 overflow-x-auto rounded-xl bg-surface-2 p-1">
         {FILTERS.map(([k, l]) => <button key={k} onClick={() => { setAction(k); setPage(1); }} className={cn('h-9 shrink-0 rounded-lg px-3 text-[13px] font-medium', action === k ? 'bg-surface shadow-card' : 'text-muted hover:text-ink')}>{l}</button>)}
       </div>

@@ -16,7 +16,7 @@ export default function MedicationsPage() {
 
   return (
     <div className="mx-auto max-w-5xl">
-      <PageHeader eyebrow="Medication database" title="Дәрілер анықтамалығы" subtitle="Тек ресми дереккөздерден алынған анықтамалық ақпарат. Әр жазбада түпнұсқа сілтеме бар." />
+      <PageHeader eyebrow="Дәрілер анықтамалығы" title="Дәрілер анықтамалығы" subtitle="Тек ресми дереккөздерден алынған анықтамалық ақпарат. Әр жазбада түпнұсқа сілтеме бар." />
       <div className="mb-5 flex gap-3 rounded-2xl border border-warning/25 bg-warning-soft p-4 text-[13px] text-ink-2">
         <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
         <p>Бұл бөлім дәрі таңдауға немесе өз бетінше емделуге арналмаған. Платформа симптомдар бойынша дәрі ұсынбайды. Кез келген дәріні тек дәрігердің тағайындауымен қабылдаңыз.</p>

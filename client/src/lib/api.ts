@@ -1,17 +1,38 @@
 export class ApiError extends Error {
-  constructor(public status: number, message: string, public fields?: { path: string; message: string }[]) {
+  constructor(public status: number, message: string, public fields?: { path: string; message: string }[], public details?: Record<string, unknown>) {
     super(message);
   }
 }
 
+/**
+ * Where the API lives:
+ * - Vite dev server (:5173) and the Node server itself (:4000) → same origin `/api` (dev proxy / same server)
+ * - XAMPP Apache (http://localhost/medmap3d/) → the Node API on port 4000 of the same host
+ * Override with VITE_API_URL at build time if needed.
+ */
+function resolveApiBase() {
+  const fromEnv = import.meta.env.VITE_API_URL as string | undefined;
+  if (fromEnv) return fromEnv.replace(/\/+$/, '');
+  const { protocol, hostname, port } = window.location;
+  if (port === '5173' || port === '4000' || hostname.endsWith('.trycloudflare.com')) return '/api';
+  return `${protocol}//${hostname}:4000/api`;
+}
+export const API_BASE = resolveApiBase();
+export const fileUrl = (id: number) => `${API_BASE}/files/${id}`;
+
 async function request<T>(method: string, url: string, body?: unknown): Promise<T> {
   const isForm = body instanceof FormData;
-  const res = await fetch(`/api${url}`, {
-    method,
-    credentials: 'include',
-    headers: body && !isForm ? { 'Content-Type': 'application/json' } : undefined,
-    body: body ? (isForm ? body : JSON.stringify(body)) : undefined,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${url}`, {
+      method,
+      credentials: 'include',
+      headers: body && !isForm ? { 'Content-Type': 'application/json' } : undefined,
+      body: body ? (isForm ? body : JSON.stringify(body)) : undefined,
+    });
+  } catch {
+    throw new ApiError(0, 'Серверге қосылу мүмкін болмады. START_MEDMAP.bat іске қосылғанын тексеріңіз.');
+  }
   const text = await res.text();
   let data: unknown = null;
   try {
@@ -20,10 +41,10 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
     data = null;
   }
   if (!res.ok) {
-    const d = data as { error?: string; fields?: { path: string; message: string }[] } | null;
+    const d = data as { error?: string; fields?: { path: string; message: string }[]; details?: Record<string, unknown> } | null;
     const msg = d?.fields?.length ? `${d.error}: ${d.fields[0].message}` : d?.error ?? `Қате (${res.status})`;
     if (res.status === 401 && !url.startsWith('/auth/')) window.dispatchEvent(new Event('medmap:unauthorized'));
-    throw new ApiError(res.status, msg, d?.fields);
+    throw new ApiError(res.status, msg, d?.fields, d?.details);
   }
   return data as T;
 }
@@ -39,7 +60,7 @@ export const api = {
 /** Opens a server-generated PDF in a new tab (cookie-authenticated). */
 export async function openPdf(url: string) {
   const win = window.open('', '_blank');
-  const res = await fetch(`/api${url}`, { credentials: 'include' });
+  const res = await fetch(`${API_BASE}${url}`, { credentials: 'include' });
   if (!res.ok) {
     win?.close();
     throw new ApiError(res.status, 'PDF жасау мүмкін болмады');

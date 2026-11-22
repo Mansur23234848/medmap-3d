@@ -1,0 +1,17 @@
+# MEDMAP 3D on XAMPP Apache: http://localhost/medmap3d/
+# Single-page app: every unknown path is served by index.html (React Router handles it).
+AddType model/gltf-binary .glb
+AddType application/javascript .js
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /medmap3d/
+  RewriteRule ^index\.html$ - [L]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . /medmap3d/index.html [L]
+</IfModule>
+<IfModule mod_headers.c>
+  <FilesMatch "index\.html$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>

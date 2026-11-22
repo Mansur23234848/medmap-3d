@@ -24,10 +24,11 @@ export const ROLE_LABEL: Record<Role, string> = { PATIENT: 'Пациент', DOC
 export const ROLE_HOME: Record<Role, string> = { PATIENT: '/app/body-map', DOCTOR: '/doctor', PHARMACIST: '/pharmacy', ADMIN: '/admin' };
 
 export const REPORT_STATUS: Record<ReportStatus, { label: string; tone: Tone }> = {
-  OPEN: { label: 'Ашық', tone: 'primary' },
+  NEW: { label: 'Жаңа өтінім', tone: 'primary' },
   UNDER_REVIEW: { label: 'Қаралуда', tone: 'warning' },
-  REVIEWED: { label: 'Қаралды', tone: 'success' },
-  CLOSED: { label: 'Жабылды', tone: 'neutral' },
+  ACCEPTED: { label: 'Қабылданды', tone: 'accent' },
+  COMPLETED: { label: 'Аяқталды', tone: 'success' },
+  REJECTED: { label: 'Қабылданбады', tone: 'danger' },
 };
 export const RX_STATUS: Record<RxStatus, { label: string; tone: Tone }> = {
   ACTIVE: { label: 'Белсенді', tone: 'success' },

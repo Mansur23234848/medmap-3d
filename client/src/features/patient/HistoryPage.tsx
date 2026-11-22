@@ -55,7 +55,7 @@ export default function HistoryPage() {
 
   return (
     <div className="mx-auto max-w-4xl">
-      <PageHeader eyebrow="Medical history" title="Медициналық тарих" subtitle="Шағымдарыңыз, дәрігер қорытындылары мен жазбалары бір хронологияда" actions={<Link to="/app/body-map"><Button icon={<Plus className="h-4 w-4" />}>Жаңа шағым</Button></Link>} />
+      <PageHeader eyebrow="Медициналық тарих" title="Медициналық тарих" subtitle="Шағымдарыңыз, дәрігер қорытындылары мен жазбалары бір хронологияда" actions={<Link to="/app/body-map"><Button icon={<Plus className="h-4 w-4" />}>Жаңа шағым</Button></Link>} />
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex gap-1 overflow-x-auto rounded-xl bg-surface-2 p-1">
           {TABS.map(([k, l]) => (

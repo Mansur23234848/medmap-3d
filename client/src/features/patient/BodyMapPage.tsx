@@ -56,7 +56,7 @@ export default function BodyMapPage() {
             <div>
               <p className="eyebrow flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-danger" /> Таңдалған аймақ</p>
               <h2 className="mt-2 text-[22px] font-semibold tracking-tight">{area.nameKk}</h2>
-              <p className="text-[13px] text-muted">{area.nameEn}</p>
+              <p className="text-[13px] text-muted">Адам денесінің аймағы</p>
               <div className="mt-3 flex flex-wrap gap-1.5">
                 <Badge>{SIDE_KK[area.side]}</Badge>
                 <Badge>{VIEW_KK[area.view]}</Badge>
@@ -70,7 +70,7 @@ export default function BodyMapPage() {
               <p className="mb-1.5 flex items-center gap-1.5 text-[13px] font-semibold"><Info className="h-4 w-4 text-primary" /> Анатомиялық сипаттама</p>
               <p className="text-[13px] leading-relaxed text-muted">{area.description}</p>
             </div>
-            <Button className="w-full" icon={<ClipboardPlus className="h-4 w-4" />} onClick={() => { setEditing(null); setFormOpen(true); }}>Жаңа шағым қосу</Button>
+            <Button className="w-full" icon={<ClipboardPlus className="h-4 w-4" />} onClick={() => { setEditing(null); setFormOpen(true); }}>Өтінім жіберу</Button>
             <div>
               <p className="mb-2 flex items-center gap-1.5 text-[13px] font-semibold"><History className="h-4 w-4 text-primary" /> Осы аймақтың тарихы</p>
               {areaReports.length === 0 ? (
@@ -141,7 +141,7 @@ export default function BodyMapPage() {
           <div className="pointer-events-none absolute top-4 right-4 hidden items-center gap-3 rounded-xl border border-line bg-surface/80 px-3 py-2 text-[11px] text-muted backdrop-blur sm:flex">
             <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-danger" /> Таңдалған</span>
             <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-rose-300" /> Жазбасы бар</span>
-            <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-sky-400" /> Hover</span>
+            <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-sky-400" /> Курсор</span>
           </div>
         </div>
 

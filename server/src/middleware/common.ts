@@ -33,6 +33,8 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
     });
   }
   if (err instanceof HttpError) return res.status(err.status).json({ error: err.message, details: err.details });
+  if ((err as { type?: string })?.type === 'entity.parse.failed') return res.status(400).json({ error: 'Сұраныс форматы дұрыс емес' });
+  if ((err as { type?: string })?.type === 'entity.too.large') return res.status(413).json({ error: 'Сұраныс тым үлкен' });
   if (err instanceof multer.MulterError) {
     const msg = err.code === 'LIMIT_FILE_SIZE' ? `Файл көлемі ${env.maxUploadBytes / 1024 / 1024} МБ-тан аспауы керек` : 'Файл жүктеу қатесі';
     return res.status(400).json({ error: msg });

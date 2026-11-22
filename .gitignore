@@ -7,3 +7,4 @@ server/uploads/*
 .claude
 server/server.log
 server.log
+logs/

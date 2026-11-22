@@ -32,7 +32,7 @@ export interface BodyData {
   masks: Map<number, Float32Array>;
 }
 
-export const MODEL_URL = '/models/human.glb';
+export const MODEL_URL = `${import.meta.env.BASE_URL}models/human.glb`;
 
 let cache: BodyData | null = null;
 

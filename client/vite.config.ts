@@ -4,6 +4,8 @@ import tailwindcss from '@tailwindcss/vite';
 import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
+  // The app lives under /medmap3d/ (XAMPP: http://localhost/medmap3d/, Node: http://localhost:4000/medmap3d/)
+  base: '/medmap3d/',
   plugins: [react(), tailwindcss()],
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   server: {

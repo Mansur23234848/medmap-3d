@@ -24,7 +24,7 @@ const C = {
 };
 
 const STATUS_KK: Record<string, string> = {
-  OPEN: 'Ашық', UNDER_REVIEW: 'Қаралуда', REVIEWED: 'Қаралды', CLOSED: 'Жабылды',
+  NEW: 'Жаңа өтінім', UNDER_REVIEW: 'Қаралуда', ACCEPTED: 'Қабылданды', COMPLETED: 'Аяқталды', REJECTED: 'Қабылданбады',
   ACTIVE: 'Белсенді', DISPENSED: 'Берілді', EXPIRED: 'Мерзімі өтті', CANCELLED: 'Жойылды',
 };
 const RECORD_KK: Record<string, string> = { EXAMINATION: 'Тексеру', CONSULTATION: 'Кеңес', LAB_RESULT: 'Зертхана', FOLLOW_UP: 'Бақылау' };
@@ -144,7 +144,7 @@ export function renderPatientPdf(rec: PatientRecord, opts: { generatedBy: string
     card(() => {
       const y0 = doc.y;
       doc.fill(C.navy).font('S').fontSize(10.5).text(`${r.bodyArea.nameKk} — ${r.bodyArea.nameEn}`, L + 14, y0, { width: CW - 150 });
-      doc.fill(C.muted).font('R').fontSize(8.5).text(`${fmt(r.createdAt)} · ${STATUS_KK[r.status]}`, L + 14, y0 + 1, { width: CW - 28, align: 'right' });
+      doc.fill(C.muted).font('R').fontSize(8.5).text(`${r.applicationNo} · ${fmt(r.createdAt)} · ${STATUS_KK[r.status]}`, L + 14, y0 + 1, { width: CW - 28, align: 'right' });
       doc.y = Math.max(doc.y, y0 + 16);
       para(r.description);
       doc.moveDown(0.3);

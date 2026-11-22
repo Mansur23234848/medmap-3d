@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Activity, Bell, BookOpen, ClipboardList, FileText, LayoutDashboard, LogOut, Moon, Pill, ScanSearch, Shield, ShieldCheck, Sun, User, Users, Stethoscope, ScrollText, PersonStanding,
+  Activity, Bell, BookOpen, ClipboardList, FileText, Inbox, LayoutDashboard, LogOut, Mail, Moon, Pill, ScanSearch, Shield, ShieldCheck, Sun, User, Users, Stethoscope, ScrollText, PersonStanding,
 } from 'lucide-react';
 import { Logo } from '@/components/ui/Logo';
 import { Avatar } from '@/components/ui/primitives';
@@ -12,15 +12,17 @@ import { useTheme } from '@/hooks/useTheme';
 import { api } from '@/lib/api';
 import type { Notification, Role } from '@/lib/types';
 import { cn, fmtRelative, ROLE_LABEL } from '@/lib/utils';
+import { useUnseenApplications } from '@/features/admin/AdminApplications';
 
-interface NavItem { to: string; label: string; icon: ReactNode; end?: boolean; mobile?: boolean }
+interface NavItem { to: string; label: string; icon: ReactNode; end?: boolean; mobile?: boolean; badge?: 'unseenApplications' }
 
 const NAV: Record<Role, NavItem[]> = {
   PATIENT: [
     { to: '/app/body-map', label: '3D дене картасы', icon: <PersonStanding className="h-[18px] w-[18px]" />, mobile: true },
     { to: '/app/dashboard', label: 'Басты бет', icon: <LayoutDashboard className="h-[18px] w-[18px]" />, mobile: true },
+    { to: '/app/applications', label: 'Өтінімдерім', icon: <Inbox className="h-[18px] w-[18px]" />, mobile: true },
     { to: '/app/history', label: 'Медициналық тарих', icon: <ClipboardList className="h-[18px] w-[18px]" />, mobile: true },
-    { to: '/app/prescriptions', label: 'Тағайындаулар', icon: <Pill className="h-[18px] w-[18px]" />, mobile: true },
+    { to: '/app/prescriptions', label: 'Тағайындаулар', icon: <Pill className="h-[18px] w-[18px]" /> },
     { to: '/app/access', label: 'Қолжетімділік', icon: <ShieldCheck className="h-[18px] w-[18px]" /> },
     { to: '/app/medications', label: 'Дәрілер анықтамалығы', icon: <BookOpen className="h-[18px] w-[18px]" /> },
     { to: '/app/profile', label: 'Профиль', icon: <User className="h-[18px] w-[18px]" />, mobile: true },
@@ -35,9 +37,11 @@ const NAV: Record<Role, NavItem[]> = {
   ],
   ADMIN: [
     { to: '/admin', label: 'Шолу', icon: <Activity className="h-[18px] w-[18px]" />, end: true, mobile: true },
+    { to: '/admin/applications', label: 'Өтінімдер', icon: <Inbox className="h-[18px] w-[18px]" />, mobile: true, badge: 'unseenApplications' },
     { to: '/admin/users', label: 'Қолданушылар', icon: <Users className="h-[18px] w-[18px]" />, mobile: true },
-    { to: '/admin/records', label: 'Медициналық жазбалар', icon: <FileText className="h-[18px] w-[18px]" />, mobile: true },
+    { to: '/admin/records', label: 'Медициналық жазбалар', icon: <FileText className="h-[18px] w-[18px]" /> },
     { to: '/admin/medications', label: 'Дәрілер базасы', icon: <Pill className="h-[18px] w-[18px]" />, mobile: true },
+    { to: '/admin/email', label: 'Email жүйесі', icon: <Mail className="h-[18px] w-[18px]" /> },
     { to: '/admin/logs', label: 'Аудит журналы', icon: <ScrollText className="h-[18px] w-[18px]" />, mobile: true },
   ],
 };
@@ -123,8 +127,10 @@ export function AppShell() {
   const { user, logout } = useAuth();
   const loc = useLocation();
   const nav = useNavigate();
+  const { data: unseen } = useUnseenApplications(user?.role === 'ADMIN');
   if (!user) return null;
   const items = NAV[user.role];
+  const badgeCount = (b?: NavItem['badge']) => (b === 'unseenApplications' ? unseen?.count ?? 0 : 0);
   const doLogout = async () => {
     await logout();
     nav('/login');
@@ -156,6 +162,7 @@ export function AppShell() {
                   {isActive && <motion.span layoutId="nav-pill" className="absolute top-2.5 bottom-2.5 left-0 w-[3px] rounded-full bg-primary" />}
                   {it.icon}
                   {it.label}
+                  {badgeCount(it.badge) > 0 && <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-danger px-1.5 text-[11px] font-semibold text-white">{badgeCount(it.badge)}</span>}
                 </>
               )}
             </NavLink>
@@ -208,8 +215,9 @@ export function AppShell() {
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/90 px-2 pt-1.5 pb-[max(env(safe-area-inset-bottom),8px)] backdrop-blur-xl lg:hidden">
         <div className="flex justify-around">
           {items.filter((i) => i.mobile).slice(0, 5).map((it) => (
-            <NavLink key={it.to} to={it.to} end={it.end} className={({ isActive }) => cn('flex min-w-[60px] flex-col items-center gap-1 rounded-xl px-2 py-1.5 text-[10px] font-medium transition', isActive ? 'text-primary' : 'text-muted')}>
+            <NavLink key={it.to} to={it.to} end={it.end} className={({ isActive }) => cn('relative flex min-w-[60px] flex-col items-center gap-1 rounded-xl px-2 py-1.5 text-[10px] font-medium transition', isActive ? 'text-primary' : 'text-muted')}>
               {it.icon}
+              {badgeCount(it.badge) > 0 && <span className="absolute top-0.5 right-3 grid h-4 min-w-4 place-items-center rounded-full bg-danger px-1 text-[9px] font-semibold text-white">{badgeCount(it.badge)}</span>}
               <span className="max-w-[72px] truncate">{it.label.split(' ')[0]}</span>
             </NavLink>
           ))}

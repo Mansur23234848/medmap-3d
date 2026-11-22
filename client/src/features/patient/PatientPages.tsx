@@ -23,7 +23,7 @@ export function PrescriptionsPage() {
 
   return (
     <div className="mx-auto max-w-5xl">
-      <PageHeader eyebrow="Prescriptions" title="Тағайындаулар" subtitle="Тек дәрігер енгізген тағайындаулар. Дәріхана кодты тек сіз рұқсат берсеңіз тексере алады." />
+      <PageHeader eyebrow="Дәрігер тағайындаулары" title="Тағайындаулар" subtitle="Тек дәрігер енгізген тағайындаулар. Дәріхана кодты тек сіз рұқсат берсеңіз тексере алады." />
       {isLoading && <div className="grid gap-4 md:grid-cols-2">{[0, 1].map((i) => <Skeleton key={i} className="h-60" />)}</div>}
       {!isLoading && !data?.prescriptions.length && <Card><EmptyState icon={<Pill className="h-5 w-5" />} title="Тағайындаулар жоқ" text="Дәрігер тағайындау жасағанда осы жерде пайда болады." /></Card>}
       <motion.div variants={stagger.container} initial="hidden" animate="show" className="grid gap-4 md:grid-cols-2">
@@ -112,7 +112,7 @@ export function AccessPage() {
 
   return (
     <div className="mx-auto max-w-4xl">
-      <PageHeader eyebrow="Patient consent" title="Деректерге қолжетімділік" subtitle="Медициналық картаңызды қай дәрігер көре алатынын тек сіз шешесіз." actions={<Button icon={<UserPlus className="h-4 w-4" />} onClick={() => setOpen(true)}>Дәрігерге рұқсат беру</Button>} />
+      <PageHeader eyebrow="Пациент рұқсаты" title="Деректерге қолжетімділік" subtitle="Медициналық картаңызды қай дәрігер көре алатынын тек сіз шешесіз." actions={<Button icon={<UserPlus className="h-4 w-4" />} onClick={() => setOpen(true)}>Дәрігерге рұқсат беру</Button>} />
       <div className="mb-5 flex gap-3 rounded-2xl border border-primary/20 bg-primary-soft/50 p-4 text-[13px] text-ink-2">
         <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
         <p>Рұқсат берілген дәрігер шағымдарыңызды, 3D картадағы аймақтарды және тарихыңызды көріп, қорытынды мен тағайындау енгізе алады. Рұқсатты кез келген уақытта кері ала аласыз — әр әрекет аудит журналына жазылады.</p>

@@ -4,6 +4,11 @@ import { z } from 'zod';
 import type { Prisma, Role } from '@prisma/client';
 import { prisma, HttpError, audit, patientCode, notFound } from '../lib/core.js';
 import { ah, parse, idParam } from '../middleware/common.js';
+import path from 'node:path';
+import fs from 'node:fs';
+import { env } from '../config/env.js';
+import { changeApplicationStatus } from '../services/applications.js';
+import { emailStatus, sendEmail, templates, verifySmtp } from '../services/email.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 
 export const adminRouter = Router();
@@ -95,7 +100,7 @@ adminRouter.post('/users', ah(async (req, res) => {
     ...profileFields,
   }), req.body);
   const user = await prisma.$transaction(async (tx) => {
-    const u = await tx.user.create({ data: { fullName: data.fullName, email: data.email, role: data.role, passwordHash: await bcrypt.hash(data.password, 12) } });
+    const u = await tx.user.create({ data: { fullName: data.fullName, email: data.email, role: data.role, emailVerifiedAt: new Date(), passwordHash: await bcrypt.hash(data.password, 12) } });
     await ensureRoleProfile(tx, u.id, data.role, data);
     return u;
   });
@@ -194,4 +199,96 @@ adminRouter.get('/logs', ah(async (req, res) => {
     prisma.activityLog.count({ where }),
   ]);
   res.json({ items, total, page, pages: Math.max(1, Math.ceil(total / 50)) });
+}));
+
+// ======================= Applications (өтінімдер) =======================
+const APP_STATUSES = ['NEW', 'UNDER_REVIEW', 'ACCEPTED', 'COMPLETED', 'REJECTED'] as const;
+const appInclude = {
+  bodyArea: { select: { slug: true, nameKk: true } },
+  patient: { select: { id: true, patientCode: true, user: { select: { fullName: true, email: true } } } },
+  _count: { select: { attachments: true, medicalRecords: true, doctorNotes: true } },
+} as const;
+
+adminRouter.get('/applications/unseen-count', ah(async (_req, res) => {
+  res.json({ count: await prisma.symptomReport.count({ where: { adminSeenAt: null } }) });
+}));
+
+adminRouter.get('/applications', ah(async (req, res) => {
+  const q = typeof req.query.q === 'string' ? req.query.q.trim().slice(0, 80) : '';
+  const status = APP_STATUSES.includes(req.query.status as never) ? (req.query.status as (typeof APP_STATUSES)[number]) : undefined;
+  const sort = req.query.sort === 'oldest' ? 'asc' : 'desc';
+  const page = Math.max(1, Number(req.query.page) || 1);
+  const where: Prisma.SymptomReportWhereInput = {
+    ...(status ? { status } : {}),
+    ...(q ? { OR: [{ applicationNo: { contains: q } }, { contactName: { contains: q } }, { contactEmail: { contains: q } }, { description: { contains: q } }, { bodyArea: { nameKk: { contains: q } } }] } : {}),
+  };
+  const [items, total, byStatus, unseen] = await Promise.all([
+    prisma.symptomReport.findMany({ where, orderBy: { createdAt: sort }, skip: (page - 1) * 25, take: 25, include: appInclude }),
+    prisma.symptomReport.count({ where }),
+    prisma.symptomReport.groupBy({ by: ['status'], _count: true }),
+    prisma.symptomReport.count({ where: { adminSeenAt: null } }),
+  ]);
+  res.json({ items, total, page, pages: Math.max(1, Math.ceil(total / 25)), byStatus: Object.fromEntries(byStatus.map((s) => [s.status, s._count])), unseen });
+}));
+
+adminRouter.get('/applications/:id', ah(async (req, res) => {
+  const id = idParam(req);
+  const app = await prisma.symptomReport.findUnique({
+    where: { id },
+    include: {
+      ...appInclude,
+      bodyArea: true,
+      attachments: { select: { id: true, originalName: true, mimeType: true, sizeBytes: true } },
+      medicalRecords: { orderBy: { createdAt: 'desc' }, include: { doctor: { select: { specialization: true, user: { select: { fullName: true } } } } } },
+      doctorNotes: { where: { visibility: 'SHARED' }, orderBy: { createdAt: 'desc' }, include: { doctor: { select: { specialization: true, user: { select: { fullName: true } } } } } },
+    },
+  });
+  if (!app) throw notFound('Өтінім');
+  if (!app.adminSeenAt) await prisma.symptomReport.update({ where: { id }, data: { adminSeenAt: new Date() } });
+  await audit(req, 'admin.application_viewed', 'symptom_report', id);
+  res.json({ application: app });
+}));
+
+adminRouter.patch('/applications/:id/status', ah(async (req, res) => {
+  const { status } = parse(z.object({ status: z.enum(APP_STATUSES) }), req.body);
+  const id = idParam(req);
+  if (!(await prisma.symptomReport.findUnique({ where: { id } }))) throw notFound('Өтінім');
+  await prisma.symptomReport.update({ where: { id }, data: { adminSeenAt: new Date() } });
+  await changeApplicationStatus(req, id, status);
+  res.json({ ok: true });
+}));
+
+adminRouter.delete('/applications/:id', ah(async (req, res) => {
+  const id = idParam(req);
+  const app = await prisma.symptomReport.findUnique({ where: { id }, include: { attachments: true } });
+  if (!app) throw notFound('Өтінім');
+  await prisma.symptomReport.delete({ where: { id } });
+  app.attachments.forEach((a) => {
+    const p = path.join(env.uploadDir, path.basename(a.storedName));
+    if (fs.existsSync(p)) fs.unlinkSync(p);
+  });
+  await audit(req, 'admin.application_deleted', 'symptom_report', id, { applicationNo: app.applicationNo });
+  res.json({ ok: true });
+}));
+
+// ======================= Email system =======================
+adminRouter.get('/email/status', ah(async (_req, res) => {
+  const [logs, counts] = await Promise.all([
+    prisma.emailLog.findMany({ orderBy: { createdAt: 'desc' }, take: 40 }),
+    prisma.emailLog.groupBy({ by: ['status'], _count: true }),
+  ]);
+  res.json({ ...emailStatus(), counts: Object.fromEntries(counts.map((c) => [c.status, c._count])), logs });
+}));
+
+adminRouter.post('/email/verify', ah(async (req, res) => {
+  const r = await verifySmtp();
+  await audit(req, 'admin.smtp_verify', 'email', undefined, { ok: r.ok });
+  res.json(r);
+}));
+
+adminRouter.post('/email/test', ah(async (req, res) => {
+  const { to } = parse(z.object({ to: z.string().trim().toLowerCase().email('Email мекенжайы дұрыс емес').max(191) }), req.body);
+  const r = await sendEmail({ to, template: 'test', userId: req.user!.id, ...templates.test() });
+  await audit(req, 'admin.email_test', 'email', undefined, { status: r.status });
+  res.json(r);
 }));

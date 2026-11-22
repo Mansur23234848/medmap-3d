@@ -1,5 +1,5 @@
 export type Role = 'PATIENT' | 'DOCTOR' | 'PHARMACIST' | 'ADMIN';
-export type ReportStatus = 'OPEN' | 'UNDER_REVIEW' | 'REVIEWED' | 'CLOSED';
+export type ReportStatus = 'NEW' | 'UNDER_REVIEW' | 'ACCEPTED' | 'COMPLETED' | 'REJECTED';
 export type RxStatus = 'ACTIVE' | 'DISPENSED' | 'EXPIRED' | 'CANCELLED';
 export type RecordType = 'EXAMINATION' | 'CONSULTATION' | 'LAB_RESULT' | 'FOLLOW_UP';
 
@@ -51,6 +51,11 @@ export interface Attachment {
 
 export interface SymptomReport {
   id: number;
+  applicationNo: string;
+  contactName: string;
+  contactEmail: string;
+  contactPhone: string | null;
+  statusChangedAt: string | null;
   patientId: number;
   bodyAreaId: number;
   bodyArea: BodyArea;

@@ -6,6 +6,8 @@ import { requireAuth, requireRole } from '../middleware/auth.js';
 import { assertDoctorAccess, doctorProfileOf } from '../services/access.js';
 import { loadPatientRecord } from '../services/records.js';
 import { renderPatientPdf } from '../services/pdf.js';
+import { changeApplicationStatus } from '../services/applications.js';
+import { sendEmailLater, templates } from '../services/email.js';
 
 export const doctorRouter = Router();
 doctorRouter.use(requireAuth, requireRole('DOCTOR'));
@@ -32,7 +34,7 @@ doctorRouter.get('/patients', ah(async (req, res) => {
     orderBy: { grantedAt: 'desc' },
   });
   const ids = consents.map((c) => c.patientId);
-  const openCounts = await prisma.symptomReport.groupBy({ by: ['patientId'], where: { patientId: { in: ids }, status: { in: ['OPEN', 'UNDER_REVIEW'] } }, _count: true });
+  const openCounts = await prisma.symptomReport.groupBy({ by: ['patientId'], where: { patientId: { in: ids }, status: { in: ['NEW', 'UNDER_REVIEW', 'ACCEPTED'] } }, _count: true });
   const openMap = new Map(openCounts.map((o) => [o.patientId, o._count]));
   res.json({
     patients: consents.map((c) => ({
@@ -62,12 +64,11 @@ doctorRouter.get('/patients/:id', ah(async (req, res) => {
 }));
 
 doctorRouter.patch('/reports/:id/status', ah(async (req, res) => {
-  const { status } = parse(z.object({ status: z.enum(['OPEN', 'UNDER_REVIEW', 'REVIEWED', 'CLOSED']) }), req.body);
-  const r = await prisma.symptomReport.findUnique({ where: { id: idParam(req) }, include: { patient: true } });
-  if (!r) throw notFound('Шағым');
+  const { status } = parse(z.object({ status: z.enum(['NEW', 'UNDER_REVIEW', 'ACCEPTED', 'COMPLETED', 'REJECTED']) }), req.body);
+  const r = await prisma.symptomReport.findUnique({ where: { id: idParam(req) } });
+  if (!r) throw notFound('Өтінім');
   await assertDoctorAccess(req.user!.id, r.patientId);
-  await prisma.symptomReport.update({ where: { id: r.id }, data: { status } });
-  await audit(req, 'report.status_changed', 'symptom_report', r.id, { status });
+  await changeApplicationStatus(req, r.id, status);
   res.json({ ok: true });
 }));
 
@@ -89,9 +90,16 @@ doctorRouter.post('/patients/:id/records', ah(async (req, res) => {
     if (!r || r.patientId !== patientId) throw new HttpError(400, 'Шағым бұл пациентке тиесілі емес');
   }
   const record = await prisma.medicalRecord.create({ data: { ...data, patientId, doctorId: me.id } });
-  if (data.symptomReportId) await prisma.symptomReport.update({ where: { id: data.symptomReportId }, data: { status: 'REVIEWED' } });
-  const patient = await prisma.patientProfile.findUniqueOrThrow({ where: { id: patientId } });
+  const patient = await prisma.patientProfile.findUniqueOrThrow({ where: { id: patientId }, include: { user: true } });
+  let appNo: string | null = null;
+  if (data.symptomReportId) {
+    const rep = await prisma.symptomReport.findUniqueOrThrow({ where: { id: data.symptomReportId } });
+    appNo = rep.applicationNo;
+    if (rep.status !== 'REJECTED' && rep.status !== 'COMPLETED') await changeApplicationStatus(req, rep.id, 'COMPLETED');
+  }
   await notify(patient.userId, 'Дәрігер қорытындысы', `${req.user!.fullName}: «${data.title}»`, 'success', '/app/history');
+  const t = templates.doctorResponse(patient.user.fullName, appNo, req.user!.fullName, data.title);
+  sendEmailLater({ to: patient.user.email, template: 'doctor_response', userId: patient.userId, ...t });
   await audit(req, 'record.created', 'medical_record', record.id, { patientId });
   res.status(201).json({ record });
 }));
@@ -111,8 +119,12 @@ doctorRouter.post('/patients/:id/notes', ah(async (req, res) => {
   }
   const note = await prisma.doctorNote.create({ data: { ...data, patientId, doctorId: me.id } });
   if (data.visibility === 'SHARED') {
-    const patient = await prisma.patientProfile.findUniqueOrThrow({ where: { id: patientId } });
-    await notify(patient.userId, 'Дәрігер жазбасы', `${req.user!.fullName} жаңа жазба қалдырды`, 'info', '/app/dashboard');
+    const patient = await prisma.patientProfile.findUniqueOrThrow({ where: { id: patientId }, include: { user: true } });
+    await notify(patient.userId, 'Дәрігер жазбасы', `${req.user!.fullName} жаңа жазба қалдырды`, 'info', '/app/history');
+    let appNo: string | null = null;
+    if (data.symptomReportId) appNo = (await prisma.symptomReport.findUnique({ where: { id: data.symptomReportId } }))?.applicationNo ?? null;
+    const t = templates.doctorResponse(patient.user.fullName, appNo, req.user!.fullName, 'Дәрігер жазбасы');
+    sendEmailLater({ to: patient.user.email, template: 'doctor_response', userId: patient.userId, ...t });
   }
   await audit(req, 'note.created', 'doctor_note', note.id, { patientId, visibility: data.visibility });
   res.status(201).json({ note });

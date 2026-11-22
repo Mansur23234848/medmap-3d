@@ -32,7 +32,7 @@ export function DoctorPatientsPage() {
 
   return (
     <div>
-      <PageHeader eyebrow="Doctor panel" title="Пациенттер" subtitle="Тек сізге рұқсат берген пациенттер көрсетіледі." />
+      <PageHeader eyebrow="Дәрігер панелі" title="Пациенттер" subtitle="Тек сізге рұқсат берген пациенттер көрсетіледі." />
       <motion.div variants={stagger.container} initial="hidden" animate="show" className="mb-5 grid gap-4 sm:grid-cols-3">
         <motion.div variants={stagger.item}><Stat label="Рұқсат берген пациенттер" value={all.length} icon={<Users className="h-4 w-4" />} /></motion.div>
         <motion.div variants={stagger.item}><Stat label="Қарауды күтетін шағымдар" value={open} icon={<ClipboardList className="h-4 w-4" />} tone="warning" /></motion.div>

@@ -11,11 +11,14 @@ import { LogoMark } from '@/components/ui/Logo';
 import type { Role } from '@/lib/types';
 import { ROLE_HOME } from '@/lib/utils';
 import LandingPage from '@/features/auth/LandingPage';
-import { LoginPage, RegisterPage } from '@/features/auth/AuthPages';
+import { ForgotPasswordPage, LoginPage, RegisterPage, ResetPasswordPage } from '@/features/auth/AuthPages';
 
 const BodyMapPage = lazy(() => import('@/features/patient/BodyMapPage'));
 const DashboardPage = lazy(() => import('@/features/patient/DashboardPage'));
 const HistoryPage = lazy(() => import('@/features/patient/HistoryPage'));
+const ApplicationsPage = lazy(() => import('@/features/patient/ApplicationsPage'));
+const AdminApplications = lazy(() => import('@/features/admin/AdminApplications'));
+const AdminEmail = lazy(() => import('@/features/admin/AdminEmail'));
 const PatientPages = () => import('@/features/patient/PatientPages');
 const PrescriptionsPage = lazy(() => PatientPages().then((m) => ({ default: m.PrescriptionsPage })));
 const AccessPage = lazy(() => PatientPages().then((m) => ({ default: m.AccessPage })));
@@ -83,12 +86,15 @@ function App() {
         <Route path="/" element={<PublicOnly><LandingPage /></PublicOnly>} />
         <Route path="/login" element={<PublicOnly><LoginPage /></PublicOnly>} />
         <Route path="/register" element={<PublicOnly><RegisterPage /></PublicOnly>} />
+        <Route path="/forgot-password" element={<PublicOnly><ForgotPasswordPage /></PublicOnly>} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
 
         <Route path="/app" element={<Protected roles={['PATIENT']}><AppShell /></Protected>}>
           <Route index element={<Navigate to="body-map" replace />} />
           <Route path="body-map" element={<S><BodyMapPage /></S>} />
           <Route path="dashboard" element={<S><DashboardPage /></S>} />
           <Route path="history" element={<S><HistoryPage /></S>} />
+          <Route path="applications" element={<S><ApplicationsPage /></S>} />
           <Route path="prescriptions" element={<S><PrescriptionsPage /></S>} />
           <Route path="access" element={<S><AccessPage /></S>} />
           <Route path="profile" element={<S><ProfilePage /></S>} />
@@ -108,6 +114,8 @@ function App() {
 
         <Route path="/admin" element={<Protected roles={['ADMIN']}><AppShell /></Protected>}>
           <Route index element={<S><AdminOverview /></S>} />
+          <Route path="applications" element={<S><AdminApplications /></S>} />
+          <Route path="email" element={<S><AdminEmail /></S>} />
           <Route path="users" element={<S><AdminUsers /></S>} />
           <Route path="records" element={<S><AdminRecords /></S>} />
           <Route path="medications" element={<S><AdminMedications /></S>} />
@@ -124,7 +132,7 @@ function App() {
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
+      <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '')}>
         <AuthProvider>
           <App />
         </AuthProvider>
