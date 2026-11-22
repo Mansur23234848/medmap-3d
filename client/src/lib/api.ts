@@ -8,14 +8,16 @@ export class ApiError extends Error {
  * Where the API lives:
  * - Vite dev server (:5173) and the Node server itself (:4000) → same origin `/api` (dev proxy / same server)
  * - XAMPP Apache (http://localhost/medmap3d/) → the Node API on port 4000 of the same host
+ * - Cloud hosting (Render) / share link → same origin `/api`
  * Override with VITE_API_URL at build time if needed.
  */
 function resolveApiBase() {
   const fromEnv = import.meta.env.VITE_API_URL as string | undefined;
   if (fromEnv) return fromEnv.replace(/\/+$/, '');
   const { protocol, hostname, port } = window.location;
-  if (port === '5173' || port === '4000' || hostname.endsWith('.trycloudflare.com')) return '/api';
-  return `${protocol}//${hostname}:4000/api`;
+  // Only XAMPP Apache on this computer (localhost:80) needs the separate Node port; everywhere else the API is same-origin.
+  const isLocalApache = (hostname === 'localhost' || hostname === '127.0.0.1') && (port === '' || port === '80');
+  return isLocalApache ? `${protocol}//${hostname}:4000/api` : '/api';
 }
 export const API_BASE = resolveApiBase();
 export const fileUrl = (id: number) => `${API_BASE}/files/${id}`;

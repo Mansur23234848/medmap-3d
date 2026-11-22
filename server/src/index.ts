@@ -16,7 +16,8 @@ import { adminRouter } from './routes/admin.js';
 import { bodyAreasRouter, medicationsRouter, notificationsRouter, filesRouter, pharmacyRouter } from './routes/misc.js';
 
 const app = express();
-app.set('trust proxy', 'loopback');
+// Behind a hosting proxy (Render) set TRUST_PROXY=1 so client IPs and HTTPS are detected correctly.
+app.set('trust proxy', process.env.TRUST_PROXY ? Number(process.env.TRUST_PROXY) : 'loopback');
 app.disable('x-powered-by');
 app.use(
   helmet({
@@ -44,6 +45,14 @@ app.use('/api', rateLimit({ windowMs: 60_000, limit: 600, standardHeaders: true,
 // Medical data must never be cached by browsers or proxies.
 app.use('/api', (_req, res, next) => {
   res.setHeader('Cache-Control', 'no-store');
+  next();
+});
+
+// When the site is opened through the public share link, e-mail links must point there instead of localhost.
+app.use((req, _res, next) => {
+  const host = req.get('host') ?? '';
+  if (/^[a-z0-9-]+\.trycloudflare\.com$/i.test(host)) env.appUrl = `https://${host}/medmap3d`;
+  if (process.env.RENDER_EXTERNAL_HOSTNAME && host === process.env.RENDER_EXTERNAL_HOSTNAME) env.appUrl = `https://${host}/medmap3d`;
   next();
 });
 

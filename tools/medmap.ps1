@@ -1,4 +1,4 @@
-﻿param([ValidateSet('start', 'stop', 'setup-email')][string]$Action = 'start')
+﻿param([ValidateSet('start', 'stop', 'setup-email', 'share')][string]$Action = 'start')
 # MEDMAP 3D launcher for Windows + XAMPP. Called by START_MEDMAP.bat / STOP_MEDMAP.bat / SETUP_EMAIL.bat.
 # Native tools (npm, prisma) write warnings to stderr; results are checked explicitly instead.
 $ErrorActionPreference = 'Continue'
@@ -51,6 +51,7 @@ if ($Action -eq 'stop') {
     $conns = Get-NetTCPConnection -LocalPort $p -State Listen -ErrorAction SilentlyContinue
     foreach ($c in $conns) { try { Stop-Process -Id $c.OwningProcess -Force; Ok "Порт $p босатылды (PID $($c.OwningProcess))" } catch { Warn "PID $($c.OwningProcess) тоқтатылмады" } }
   }
+  Get-Process cloudflared -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.Id -Force; Ok 'Интернеттегі сілтеме өшірілді' }
   Say 'XAMPP Apache мен MySQL басқа жобалар үшін қосулы қалады (XAMPP Control Panel арқылы тоқтатуға болады).'
   Ok 'MEDMAP 3D сервері тоқтатылды.'
   exit 0
@@ -78,6 +79,54 @@ if ($Action -eq 'setup-email') {
   $plain = $null
   Ok 'SMTP параметрлері server\.env файлына сақталды (бұл файл GitHub-қа жіберілмейді).'
   Say 'Өзгеріс күшіне енуі үшін STOP_MEDMAP.bat, содан кейін START_MEDMAP.bat іске қосыңыз.'
+  exit 0
+}
+
+# ======================================================================
+if ($Action -eq 'share') {
+  Write-Host ''
+  Write-Host '  ==============================================' -ForegroundColor Cyan
+  Write-Host '     MEDMAP 3D — интернеттегі сілтеме' -ForegroundColor Cyan
+  Write-Host '  ==============================================' -ForegroundColor Cyan
+  if (-not (Test-Port 4000)) {
+    Warn 'Сайт әлі іске қосылмаған — алдымен іске қосамын...'
+    & $PSCommandPath start | Out-Null
+    if (-not (Test-Port 4000)) { Fail 'Сайт іске қосылмады. «1 MEDMAP 3D - СТАРТ» басып көріңіз.'; exit 1 }
+  }
+  $cf = @("${env:ProgramFiles(x86)}\cloudflared\cloudflared.exe", "$env:ProgramFiles\cloudflared\cloudflared.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
+  if (-not $cf) {
+    Say 'cloudflared орнатылуда (бір рет қана)...'
+    winget install --id Cloudflare.cloudflared -e --source winget --accept-package-agreements --accept-source-agreements --silent | Out-Null
+    $cf = @("${env:ProgramFiles(x86)}\cloudflared\cloudflared.exe", "$env:ProgramFiles\cloudflared\cloudflared.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if (-not $cf) { Fail 'cloudflared орнатылмады. Интернетті тексеріңіз.'; exit 1 }
+  }
+  Get-Process cloudflared -ErrorAction SilentlyContinue | Stop-Process -Force
+  $tlog = Join-Path $LogDir 'tunnel.log'
+  Remove-Item $tlog -ErrorAction SilentlyContinue
+  Start-Process -FilePath $cf -ArgumentList 'tunnel', '--no-autoupdate', '--url', 'http://localhost:4000' -WindowStyle Hidden -RedirectStandardError $tlog -RedirectStandardOutput (Join-Path $LogDir 'tunnel.out.log')
+  Say 'Сілтеме жасалуда (10–20 секунд)...'
+  $url = $null
+  for ($i = 0; $i -lt 60 -and -not $url; $i++) {
+    Start-Sleep -Seconds 1
+    if (Test-Path $tlog) { $m = Select-String -Path $tlog -Pattern 'https://[a-z0-9-]+\.trycloudflare\.com' | Select-Object -First 1; if ($m) { $url = $m.Matches[0].Value } }
+  }
+  if (-not $url) { Fail 'Сілтеме жасалмады. Интернетті тексеріп, қайталаңыз (logs\tunnel.log).'; exit 1 }
+  $site = "$url/medmap3d/"
+  for ($i = 0; $i -lt 20; $i++) { if ((Get-HttpStatus $site) -eq 200) { break }; Start-Sleep -Seconds 1 }
+  try { Set-Clipboard -Value $site } catch {}
+  [System.IO.File]::WriteAllText((Join-Path $Root 'СІЛТЕМЕ.txt'), "MEDMAP 3D сілтемесі (компьютер қосулы тұрғанда жұмыс істейді):`r`n$site`r`n`r`nӘкімші: admin@medmap.demo / Admin2026!`r`nПациент: patient@medmap.demo / Patient2026!`r`nДәрігер: doctor@medmap.demo / Doctor2026!`r`n", (New-Object System.Text.UTF8Encoding($true)))
+  Write-Host ''
+  Write-Host '  ==============================================' -ForegroundColor Green
+  Write-Host '   БАСҚАЛАРҒА ЖІБЕРЕТІН СІЛТЕМЕ:' -ForegroundColor Green
+  Write-Host ''
+  Write-Host "   $site" -ForegroundColor Yellow
+  Write-Host ''
+  Write-Host '   Сілтеме көшірілді — WhatsApp/Telegram-ға Ctrl+V арқылы қоя беріңіз.' -ForegroundColor Green
+  Write-Host '   Ол сонымен қатар жоба папкасындағы СІЛТЕМЕ.txt файлында.' -ForegroundColor Green
+  Write-Host '   Компьютер қосулы және осы сайт жұмыс істеп тұрғанда ашылады.' -ForegroundColor Green
+  Write-Host '   Өшіру: «2 MEDMAP 3D - СТОП»' -ForegroundColor Green
+  Write-Host '  ==============================================' -ForegroundColor Green
+  Start-Process $site
   exit 0
 }
 

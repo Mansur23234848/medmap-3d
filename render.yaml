@@ -1,0 +1,39 @@
+# Render Blueprint — MEDMAP 3D (free web service). Database: hosted MySQL (e.g. Aiven free plan).
+services:
+  - type: web
+    name: medmap-3d
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: npm --prefix client ci --include=dev && npm --prefix client run build && npm --prefix server ci --include=dev && npm --prefix server exec prisma generate
+    startCommand: cd server && node scripts/cloud-start.mjs
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.12.0
+      - key: NODE_ENV
+        value: production
+      - key: TRUST_PROXY
+        value: "1"
+      - key: DATABASE_URL
+        sync: false # paste the MySQL Service URI from Aiven
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 8h
+      - key: APP_URL
+        value: https://medmap-3d.onrender.com/medmap3d
+      - key: CLIENT_ORIGIN
+        value: https://medmap-3d.onrender.com
+      - key: UPLOAD_DIR
+        value: ./uploads
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false # Gmail address (optional)
+      - key: SMTP_PASS
+        sync: false # Google App Password (optional)
+      - key: EMAIL_DEV_FALLBACK
+        value: "true"
